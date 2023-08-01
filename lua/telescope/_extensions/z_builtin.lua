@@ -103,4 +103,43 @@ M.list = function(opts)
   }):find()
 end
 
+M.grep = function(opts)
+  opts = opts or {}
+  local cmd = vim.F.if_nil(opts.cmd, {vim.o.shell, '-c', 'z -l'})
+  opts.cwd = utils.get_lazy_default(opts.cwd, vim.loop.cwd)
+  opts.entry_maker = utils.get_lazy_default(opts.entry_maker, gen_from_z, opts)
+
+  pickers.new(opts, {
+    prompt_title = 'Visited directories from z',
+    finder = finders.new_table{
+      results = utils.get_os_command_output(cmd),
+      entry_maker = opts.entry_maker,
+    },
+    sorter = conf.file_sorter(opts),
+    previewer = previewers.cat.new(opts),
+    attach_mappings = function(prompt_bufnr)
+      actions_set.select:replace(function(_, type)
+        local entry = actions_state.get_selected_entry()
+        local dir = from_entry.path(entry)
+        if type == 'default' then
+          require'telescope.builtin'.live_grep{cwd = dir, hidden = true}
+          return
+        end
+        actions.close(prompt_bufnr)
+        if type == 'horizontal' then
+          vim.cmd('cd '..dir)
+          print('chdir to '..dir)
+        elseif type == 'vertical' then
+          vim.cmd('lcd '..dir)
+          print('lchdir to '..dir)
+        elseif type == 'tab' then
+          vim.cmd('tcd '..dir)
+          print('tchdir to '..dir)
+        end
+      end)
+      return true
+    end,
+  }):find()
+end
+
 return M
